@@ -3,7 +3,7 @@ from PyQt5.QtWidgets import QSpacerItem, QSizePolicy
 class StatsWindow(QWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("System Monitor")
+        self.setWindowTitle("SMARTTEMP")
         self.setGeometry(0, 0, 1920, 515)
         self.setStyleSheet("background-color: black;")
         self.showFullScreen()
@@ -61,12 +61,12 @@ class StatsWindow(QWidget):
         self.update_stats()
 
     def make_status_style(self, status):
-        if status == "normal":
-            gradient = "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #1abc9c, stop:1 black);"
-        elif status == "warning":
-            gradient = "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 orange, stop:1 black);"
-        elif status == "critical":
-            gradient = "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 red, stop:1 black);"
+        if status == "green":
+            gradient = "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #00ff00, stop:1 black);"
+        elif status == "orange":
+            gradient = "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #ffff00, stop:1 black);"
+        elif status == "red":
+            gradient = "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #ff0000, stop:1 black);"
         else:
             gradient = "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 gray, stop:1 black);"
 
@@ -77,7 +77,7 @@ class StatsWindow(QWidget):
         """
 
     def update_stats(self):
-        status = "normal"
+        status = "green"
         message = "System OK"
 
         cpu_freq = psutil.cpu_freq()
