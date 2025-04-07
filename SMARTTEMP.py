@@ -15,7 +15,7 @@ class StatsWindow(QWidget):
         self.status_label = QLabel("Initializing...")
         self.status_label.setFixedHeight(60)
         self.status_label.setAlignment(Qt.AlignCenter)
-        self.status_label.setStyleSheet(self.make_status_style("normal"))
+        self.status_label.setStyleSheet(self.make_status_style("green"))
         self.status_label.setFont(QFont("Segoe UI", 20, QFont.Bold))
         self.main_layout.addWidget(self.status_label)
 
