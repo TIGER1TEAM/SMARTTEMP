@@ -1,4 +1,8 @@
 import sys
+import time
+import ctypes
+import string
+import win32file
 import psutil
 import GPUtil
 from datetime import datetime
@@ -10,7 +14,6 @@ from PyQt5.QtGui import QGuiApplication
 from PyQt5.QtWidgets import QSpacerItem, QSizePolicy
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QFont
-import sys
 
 def create_component_box(title):
     box = QGroupBox(title)
@@ -47,6 +50,95 @@ def get_gpu_info():
         gpu_info.append((gpu_name, gpu_temp, gpu_percent))
     
     return gpu_info
+
+
+# Call this once during initialization
+prev = psutil.disk_io_counters()
+prev_time = time.time()
+
+def get_disk_io_speed():
+    global prev, prev_time
+
+    current = psutil.disk_io_counters()
+    current_time = time.time()
+    elapsed = current_time - prev_time
+
+    read_speed = (current.read_bytes - prev.read_bytes) / elapsed / 1024  # KB/s
+    write_speed = (current.write_bytes - prev.write_bytes) / elapsed / 1024  # KB/s
+
+    prev = current
+    prev_time = current_time
+
+    return read_speed, write_speed
+    
+def get_drive_labels():
+    labels = {}
+    drives = [f"{d}:\\" for d in string.ascii_uppercase if os.path.exists(f"{d}:\\")]
+    
+    for drive in drives:
+        label_buf = ctypes.create_unicode_buffer(1024)
+        ctypes.windll.kernel32.GetVolumeInformationW(
+            ctypes.c_wchar_p(drive),
+            label_buf,
+            ctypes.sizeof(label_buf),
+            None,
+            None,
+            None,
+            None,
+            0
+        )
+        labels[drive] = label_buf.value if label_buf.value else "Local Disk"
+    return labels
+    
+    labels = get_drive_labels()
+
+for drive in psutil.disk_partitions():
+    if 'cdrom' in drive.opts or drive.fstype == '':
+        continue
+    usage = psutil.disk_usage(drive.mountpoint)
+    label = labels.get(drive.device, "Unknown")
+    print(f"{label} ({drive.device}) - {usage.used / 1e+9:.1f} GB / {usage.total / 1e+9:.1f} GB")
+
+def is_removable(path):
+    try:
+        drive_type = win32file.GetDriveType(path)
+        return drive_type == win32file.DRIVE_REMOVABLE
+    except Exception:
+        return False
+for drive in drives:
+    if 'cdrom' in drive.opts or drive.fstype == '':
+        continue
+
+    usage = psutil.disk_usage(drive.mountpoint)
+    label = "USB" if is_removable(drive.device) else "Drive"
+    storage_info.append(f"{label} {drive.device} {used:.1f} / {total:.1f} GB ({percent}%)")
+
+def update_network_info(self):
+    current = psutil.net_io_counters()
+    current_time = time.time()
+
+    elapsed = current_time - self.prev_net_time
+    if elapsed == 0:
+        return  # Avoid divide by zero
+
+    download_speed = (current.bytes_recv - self.prev_net.bytes_recv) / elapsed
+    upload_speed = (current.bytes_sent - self.prev_net.bytes_sent) / elapsed
+
+    self.prev_net = current
+    self.prev_net_time = current_time
+
+    # Convert to readable format
+    def format_speed(bps):
+        if bps > 1024**2:
+            return f"{bps / 1024**2:.2f} MB/s"
+        elif bps > 1024:
+            return f"{bps / 1024:.1f} KB/s"
+        else:
+            return f"{bps:.0f} B/s"
+
+    self.network_label.setText(
+        f"Download: {format_speed(download_speed)}\nUpload: {format_speed(upload_speed)}"
+    )
 
 class ClockView(QWidget):
     def __init__(self):
@@ -184,6 +276,21 @@ class Dashboard(QWidget):
         
 		layout.addWidget(self.ram_box)
         
+        # Storage Box
+		self.storage_box, self.storage_layout = create_component_box("Storage")
+		self.storage_label = QLabel()
+		self.storage_label.setStyleSheet("color: white; font-size: 18px;")
+		self.storage_layout.addWidget(self.storage_label)
+
+		layout.addWidget(self.storage_box)
+
+		# Network Box
+		self.network_box, self.network_layout = create_component_box("Network")
+		self.network_label = QLabel("Loading network data...")
+		self.network_label.setStyleSheet("color: white; font-size: 18px;")
+		self.network_layout.addWidget(self.network_label)
+        
+		layout.addWidget(self.network_box)
 
     def update_stats(self):
         cpu_percent = psutil.cpu_percent()
@@ -199,7 +306,30 @@ class Dashboard(QWidget):
 		total_gb = memory.total / (1024 ** 3)
 		used_gb = memory.used / (1024 ** 3)
 		percent = memory.percent
-		self.ram_label.setText(f"RAM: {used_gb:.1f} GB / {total_gb:.1f} GB ({percent}%)")
+		self.ram_label.setText(f"Corsair Vengence RGB DDR5 16GB (2x) | RAM: {used_gb:.1f} GB / {total_gb:.1f} GB | Usage: {percent}%")
+
+		# Storage Usage
+		drives = psutil.disk_partitions()
+		storage_info = []
+
+		for drive in drives:
+  		  if 'cdrom' in drive.opts == '':
+    	    continue  # Skip empty or CD-ROM drives
+
+    	usage = psutil.disk_usage(drive.mountpoint)
+    	total_gb = usage.total / (1024 ** 3)
+    	used_gb = usage.used / (1024 ** 3)
+    	percent = usage.percent
+		read_kb, write_kb = get_disk_io_speed()
+		self.storage_label.setText(
+    		f"{label} ({drive.device})\n"
+    		f"Used: {used_gb:.1f} / {total_gb:.1f} GB ({percent}%)\n"
+    		f"Read: {read_kb:.0f} KB/s | Write: {write_kb:.0f} KB/s"
+		)
+
+		self.storage_label.setText("\n".join(storage_info))
+
+		self.update_network_info()
 
         # Update top bar based on CPU usage
         if cpu_percent > 98:
