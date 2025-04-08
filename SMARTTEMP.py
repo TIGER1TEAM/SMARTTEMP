@@ -175,6 +175,15 @@ class Dashboard(QWidget):
         self.gpu_layout.addWidget(self.gpu_usage)
 
         layout.addWidget(self.gpu_box)
+        
+        # RAM Box
+		self.ram_box, self.ram_layout = create_component_box("RAM")
+		self.ram_label = QLabel()
+		self.ram_label.setStyleSheet("color: white; font-size: 18px;")
+		self.ram_layout.addWidget(self.ram_label)
+        
+		layout.addWidget(self.ram_box)
+        
 
     def update_stats(self):
         cpu_percent = psutil.cpu_percent()
@@ -184,6 +193,13 @@ class Dashboard(QWidget):
         gpu_temp = gpu.temperature
         gpu_percent = gpus[0].memoryUtil * 100 if gpus else 0  # Assuming 1 GPU; adjust for multi-GPU systems
         self.gpu_temp_label.setText(f"PNY 4060ti | Temp: {gpu_temp}°C | Usage: {gpu_usage:.1f}%")
+        
+        # RAM Usage
+		memory = psutil.virtual_memory()
+		total_gb = memory.total / (1024 ** 3)
+		used_gb = memory.used / (1024 ** 3)
+		percent = memory.percent
+		self.ram_label.setText(f"RAM: {used_gb:.1f} GB / {total_gb:.1f} GB ({percent}%)")
 
         # Update top bar based on CPU usage
         if cpu_percent > 98:
