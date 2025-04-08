@@ -1,74 +1,149 @@
+import sys
+import psutil
+import GPUtil
+from datetime import datetime
+from PyQt5.QtWidgets import (
+    QApplication, QWidget, QLabel, QVBoxLayout, QHBoxLayout,
+    QPushButton, QGroupBox, QStackedLayout
+)
+from PyQt5.QtGui import QGuiApplication
 from PyQt5.QtWidgets import QSpacerItem, QSizePolicy
+from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtGui import QFont
+import sys
 
-class StatsWindow(QWidget):
+def create_component_box(title):
+    box = QGroupBox(title)
+    box.setStyleSheet("""
+        QGroupBox {
+            border: 2px solid white;
+            border-radius: 10px;
+            margin-top: 20px;
+            color: white;
+            font-weight: bold;
+            font-size: 25px;
+        }
+                      QGroupBox::title {
+            subcontrol-origin: margin;
+            subcontrol-position: top left; /* Keep the title at the top center */
+            padding-top: 7px;  /* Adjust this value to move the title up */
+            padding-left: 0px;
+            padding-right: 10px;
+        }
+    """)
+    box.setFont(QFont("Segoe UI", 12))
+    layout = QVBoxLayout()
+    box.setLayout(layout)
+    return box, layout
+
+def get_gpu_info():
+    gpus = GPUtil.getGPUs()
+    gpu_info = []
+    
+    for gpu in gpus:
+        gpu_name = gpu.name
+        gpu_temp = gpu.temperature  # Temperature of the GPU
+        gpu_percent = gpu.memoryUtil * 100  # Memory usage percentage
+        gpu_info.append((gpu_name, gpu_temp, gpu_percent))
+    
+    return gpu_info
+
+class ClockView(QWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("SMARTTEMP")
+        layout = QVBoxLayout()
+        self.setLayout(layout)
+
+        self.clock_label = QLabel()
+        self.clock_label.setAlignment(Qt.AlignCenter)
+        self.clock_label.setStyleSheet("color: white; font-size: 72px;")
+        layout.addWidget(self.clock_label)
+
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.update_time)
+        self.timer.start(1000)
+        self.update_time()
+
+    def update_time(self):
+        now = datetime.now()
+        self.clock_label.setText(now.strftime("%H:%M:%S\n%A, %B %d"))
+
+screen_index = 1  # 👈 change this to choose monitor
+
+class Dashboard(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Dashboard")
         self.setGeometry(0, 0, 1920, 515)
         self.setStyleSheet("background-color: black;")
+        screens = QGuiApplication.screens()
+        if screen_index < len(screens):
+            screen = screens[screen_index]
+            geometry = screen.geometry()
+            self.setGeometry(geometry)  # Position + size
+        else:
+            print("Monitor index out of range. Defaulting to primary.")
         self.showFullScreen()
 
-        self.main_layout = QVBoxLayout()
+        # Main layout
+        self.main_layout = QVBoxLayout(self)
+        self.main_layout.setContentsMargins(0, 0, 0, 0)  # Remove margins
+        self.main_layout.setSpacing(0)  # Remove spacing between items
         self.setLayout(self.main_layout)
 
-        # Status Bar
-        self.status_label = QLabel("Initializing...")
+        # Top Status Bar
+        self.status_label = QLabel("System OK")
         self.status_label.setFixedHeight(60)
         self.status_label.setAlignment(Qt.AlignCenter)
-        self.status_label.setStyleSheet(self.make_status_style("green"))
         self.status_label.setFont(QFont("Segoe UI", 20, QFont.Bold))
+        self.status_label.setStyleSheet(self.make_status_style("normal"))
         self.main_layout.addWidget(self.status_label)
 
-        # Component Boxes
-        component_layout = QHBoxLayout()
-        self.main_layout.addLayout(component_layout)
+        # Stacked views
+        self.stack = QStackedLayout()
+        self.main_layout.addLayout(self.stack)
 
-        # CPU Box
-        self.cpu_box, self.cpu_layout = create_component_box("CPU")
-        self.cpu_temp = QLabel()
-        self.cpu_usage = QLabel()
-        self.cpu_clock = QLabel()
-        for label in (self.cpu_temp, self.cpu_usage, self.cpu_clock):
-            label.setStyleSheet("color: white; font-size: 18px;")
-            self.cpu_layout.addWidget(label)
+        # Views
+        self.monitor_view = QWidget()
+        self.build_monitor_view()
+        self.clock_view = ClockView()
 
-        # GPU Box
-        self.gpu_box, self.gpu_layout = create_component_box("GPU")
-        self.gpu_temp = QLabel()
-        self.gpu_usage = QLabel()
-        self.gpu_clock = QLabel()
-        for label in (self.gpu_temp, self.gpu_usage, self.gpu_clock):
-            label.setStyleSheet("color: white; font-size: 18px;")
-            self.gpu_layout.addWidget(label)
+        self.stack.addWidget(self.monitor_view)
+        self.stack.addWidget(self.clock_view)
 
-        # RAM Box
-        self.ram_box, self.ram_layout = create_component_box("RAM")
-        self.ram_usage = QLabel()
-        self.ram_percent = QLabel()
-        for label in (self.ram_usage, self.ram_percent):
-            label.setStyleSheet("color: white; font-size: 18px;")
-            self.ram_layout.addWidget(label)
+        # Nav buttons
+        nav_layout = QHBoxLayout()
+        self.btn_monitor = QPushButton("Tempatures")
+        self.btn_clock = QPushButton("Clock")
+        for btn in [self.btn_monitor, self.btn_clock]:
+            btn.setStyleSheet("background-color: #333; color: white; font-size: 16px;")
+            btn.setFixedHeight(40)
+            nav_layout.addWidget(btn)
 
-        # Add all boxes
-        component_layout.addWidget(self.cpu_box)
-        component_layout.addWidget(self.gpu_box)
-        component_layout.addWidget(self.ram_box)
+        self.main_layout.addLayout(nav_layout)
 
-        # Timer
+        self.btn_monitor.clicked.connect(lambda: self.stack.setCurrentWidget(self.monitor_view))
+        self.btn_clock.clicked.connect(lambda: self.stack.setCurrentWidget(self.clock_view))
+
+        # Update Timer
         self.timer = QTimer()
         self.timer.timeout.connect(self.update_stats)
         self.timer.start(1000)
         self.update_stats()
 
     def make_status_style(self, status):
-        if status == "green":
+        if status == "normal":
             gradient = "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #00ff00, stop:1 black);"
-        elif status == "orange":
-            gradient = "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #ffff00, stop:1 black);"
-        elif status == "red":
+        elif status == "warning":
+            gradient = "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #fcec03, stop:1 black);"
+        elif status == "alert":
+            gradient = "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #fc6b03, stop:1 black);"
+        elif status == "critical":
             gradient = "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #ff0000, stop:1 black);"
-        else:
+        elif status == "NA":
             gradient = "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 gray, stop:1 black);"
+        else:
+            gradient = "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 black, stop:1 black);"
 
         return f"""
             background: {gradient}
@@ -76,34 +151,64 @@ class StatsWindow(QWidget):
             padding: 10px;
         """
 
+    def build_monitor_view(self):
+        layout = QHBoxLayout()
+        self.monitor_view.setLayout(layout)
+
+        # CPU Box
+        self.cpu_box, self.cpu_layout = create_component_box("CPU")
+        self.cpu_usage = QLabel()
+        self.cpu_usage.setStyleSheet("color: white; font-size: 18px;")
+        self.cpu_layout.addWidget(self.cpu_usage)
+
+        layout.addWidget(self.cpu_box)
+
+        layout.addSpacerItem(QSpacerItem(20, 20, QSizePolicy.Minimum, QSizePolicy.Expanding))
+
+        # GPU Box
+        self.gpu_box, self.gpu_layout = create_component_box("GPU")
+        self.gpu_name = QLabel()
+        self.gpu_name.setStyleSheet("color: white; font-size: 18px;")
+        self.gpu_usage = QLabel()
+        self.gpu_usage.setStyleSheet("color: white; font-size: 18px;")
+        self.gpu_layout.addWidget(self.gpu_usage)
+
+        layout.addWidget(self.gpu_box)
+
     def update_stats(self):
-        status = "green"
-        message = "System OK"
-
-        cpu_freq = psutil.cpu_freq()
         cpu_percent = psutil.cpu_percent()
-        self.cpu_usage.setText(f"Usage: {cpu_percent}%")
-        self.cpu_clock.setText(f"Clock: {cpu_freq.current:.0f} MHz")
-
-        ram = psutil.virtual_memory()
-        self.ram_usage.setText(f"Usage: {ram.used / (1024**3):.1f} / {ram.total / (1024**3):.1f} GB")
-        self.ram_percent.setText(f"Percent: {ram.percent}%")
+        self.cpu_usage.setText(f"CPU Usage: {cpu_percent}%")
 
         gpus = GPUtil.getGPUs()
-        if gpus:
-            gpu = gpus[0]
-            gpu_temp = gpu.temperature
-            self.gpu_temp.setText(f"Temp: {gpu_temp}°C")
-            self.gpu_usage.setText(f"Usage: {gpu.load * 100:.0f}%")
-            self.gpu_clock.setText(f"Clock: {gpu.clockSpeed} MHz")
+        gpu_percent = gpus[0].memoryUtil * 100 if gpus else 0  # Assuming 1 GPU; adjust for multi-GPU systems
+        self.gpu_usage.setText(f"GPU Usage: {gpu_percent:.2f}%")
 
-            # Check GPU temp
-            if gpu_temp > 85:
-                status = "critical"
-                message = "GPU Overheating!"
-            elif gpu_temp > 70:
-                status = "warning"
-                message = "GPU Temperature High"
+        # Update top bar based on CPU usage
+        if cpu_percent > 98:
+            self.status_label.setText("ALERT: MAX CPU USAGE")
+            self.status_label.setStyleSheet(self.make_status_style("critical"))
+        elif gpu_percent > 98:
+            self.status_label.setText("ALERT: MAX GPU USAGE")
+            self.status_label.setStyleSheet(self.make_status_style("critical"))
+        elif cpu_percent > 90:
+            self.status_label.setText("WARNING: >90% CPU USAGE")
+            self.status_label.setStyleSheet(self.make_status_style("alert"))
+        elif gpu_percent > 90:
+            self.status_label.setText("WARNING: >90% GPU USAGE")
+            self.status_label.setStyleSheet(self.make_status_style("alert"))
+        elif cpu_percent > 70:
+            self.status_label.setText("CAUTION: >70% CPU USAGE")
+            self.status_label.setStyleSheet(self.make_status_style("warning"))
+        elif gpu_percent > 70:
+            self.status_label.setText("CAUTION: >70% GPU USAGE")
+            self.status_label.setStyleSheet(self.make_status_style("warning"))
+        else:
+            self.status_label.setText("System: OK")
+            self.status_label.setStyleSheet(self.make_status_style("normal"))
 
-        self.status_label.setText(message)
-        self.status_label.setStyleSheet(self.make_status_style(status))
+
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    window = Dashboard()
+    window.show()
+    sys.exit(app.exec_())
