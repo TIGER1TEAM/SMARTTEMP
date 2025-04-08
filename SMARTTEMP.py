@@ -68,7 +68,7 @@ class ClockView(QWidget):
         now = datetime.now()
         self.clock_label.setText(now.strftime("%H:%M:%S\n%A, %B %d"))
 
-screen_index = 1  # 👈 change this to choose monitor
+screen_index = 1 
 
 class Dashboard(QWidget):
     def __init__(self):
