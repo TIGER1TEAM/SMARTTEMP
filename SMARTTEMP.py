@@ -94,11 +94,11 @@ def get_drive_labels():
     labels = get_drive_labels()
 
 for drive in psutil.disk_partitions():
-    if 'cdrom' in drive.opts or drive.fstype == '':
+    if 'cdrom' in drive.opts == '':
         continue
     usage = psutil.disk_usage(drive.mountpoint)
-    label = labels.get(drive.device, "Unknown")
-    print(f"{label} ({drive.device}) - {usage.used / 1e+9:.1f} GB / {usage.total / 1e+9:.1f} GB")
+    label1 = labels.get(drive.device, "Unknown")
+    print(f"{label1} ({drive.device}) - {usage.used / 1e+9:.1f} GB / {usage.total / 1e+9:.1f} GB")
 
 def is_removable(path):
     try:
@@ -107,7 +107,7 @@ def is_removable(path):
     except Exception:
         return False
 for drive in drives:
-    if 'cdrom' in drive.opts or drive.fstype == '':
+    if 'cdrom' in drive.opts == '':
         continue
 
     usage = psutil.disk_usage(drive.mountpoint)
@@ -185,11 +185,11 @@ class Dashboard(QWidget):
         self.setLayout(self.main_layout)
 
         # Top Status Bar
-        self.status_label = QLabel("System OK")
+        self.status_label = QLabel("Initalizing...")
         self.status_label.setFixedHeight(60)
         self.status_label.setAlignment(Qt.AlignCenter)
         self.status_label.setFont(QFont("Segoe UI", 20, QFont.Bold))
-        self.status_label.setStyleSheet(self.make_status_style("normal"))
+        self.status_label.setStyleSheet(self.make_status_style("NA"))
         self.main_layout.addWidget(self.status_label)
 
         # Stacked views
@@ -233,8 +233,12 @@ class Dashboard(QWidget):
             gradient = "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #fc6b03, stop:1 black);"
         elif status == "critical":
             gradient = "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #ff0000, stop:1 black);"
+        elif status == "!!":
+            gradient = "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #ffffff, stop:1 #ff0000);"
         elif status == "NA":
             gradient = "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 gray, stop:1 black);"
+        elif status == "note":
+            gradient = "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #0000ff, stop:1 black);"
         else:
             gradient = "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 black, stop:1 black);"
 
@@ -323,9 +327,9 @@ class Dashboard(QWidget):
     	percent = usage.percent
 		read_kb, write_kb = get_disk_io_speed()
 		self.storage_label.setText(
-    		f"{label} ({drive.device})\n"
-    		f"Used: {used_gb:.1f} / {total_gb:.1f} GB ({percent}%)\n"
-    		f"Read: {read_kb:.0f} KB/s | Write: {write_kb:.0f} KB/s"
+    		f"{label1} {label} ({drive.device})\n"
+    		f"	Used: {used_gb:.1f} / {total_gb:.1f} GB ({percent}%)\n"
+    		f"	Read: {read_kb:.0f} KB/s | Write: {write_kb:.0f} KB/s"
 		)
 
 		self.storage_label.setText("\n".join(storage_info))
