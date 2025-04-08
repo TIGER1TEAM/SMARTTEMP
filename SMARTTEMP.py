@@ -167,8 +167,9 @@ class Dashboard(QWidget):
 
         # GPU Box
         self.gpu_box, self.gpu_layout = create_component_box("GPU")
-        self.gpu_name = QLabel()
-        self.gpu_name.setStyleSheet("color: white; font-size: 18px;")
+        self.gpu_temp_label = QLabel()
+		self.gpu_temp_label.setStyleSheet("color: white; font-size: 18px;")
+		self.gpu_layout.addWidget(self.gpu_temp_label)
         self.gpu_usage = QLabel()
         self.gpu_usage.setStyleSheet("color: white; font-size: 18px;")
         self.gpu_layout.addWidget(self.gpu_usage)
@@ -177,11 +178,12 @@ class Dashboard(QWidget):
 
     def update_stats(self):
         cpu_percent = psutil.cpu_percent()
-        self.cpu_usage.setText(f"CPU Usage: {cpu_percent}%")
+        self.cpu_usage.setText(f"Intel 14900k 12th Gen i9 | CPU Usage: {cpu_percent}%")
 
         gpus = GPUtil.getGPUs()
+        gpu_temp = gpu.temperature
         gpu_percent = gpus[0].memoryUtil * 100 if gpus else 0  # Assuming 1 GPU; adjust for multi-GPU systems
-        self.gpu_usage.setText(f"GPU Usage: {gpu_percent:.2f}%")
+        self.gpu_temp_label.setText(f"PNY 4060ti | Temp: {gpu_temp}°C | Usage: {gpu_usage:.1f}%")
 
         # Update top bar based on CPU usage
         if cpu_percent > 98:
