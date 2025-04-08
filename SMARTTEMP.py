@@ -56,7 +56,7 @@ class ClockView(QWidget):
 
         self.clock_label = QLabel()
         self.clock_label.setAlignment(Qt.AlignCenter)
-        self.clock_label.setStyleSheet("color: white; font-size: 72px;")
+        self.clock_label.setStyleSheet("color: white; font-size: 72px; font: Arial;")
         layout.addWidget(self.clock_label)
 
         self.timer = QTimer()
