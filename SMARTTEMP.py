@@ -1,3 +1,4 @@
+#VER:1.2.0
 import sys
 import time
 import ctypes
