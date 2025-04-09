@@ -1,4 +1,4 @@
-#VER:1.2.0
+#VER:1.2.1
 import sys
 import time
 import os
@@ -310,10 +310,10 @@ class Dashboard(QWidget):
         memory = psutil.virtual_memory()
         total_gb = memory.total / (1024 ** 3)
         used_gb = memory.used / (1024 ** 3)
-        percent = memory.percent
+        rm_percent = memory.percent
         self.ram_label.setText(f"Corsair Vengence RGB DDR5 16GB (2x)\n"
                                f"RAM: {used_gb:.1f} GB / {total_gb:.1f} GB\n"
-                               f"Usage: {percent}%/s"
+                               f"Usage: {rm_percent}%/s"
                                )
 
 		# Storage Usage
@@ -362,21 +362,48 @@ class Dashboard(QWidget):
         if cpu_percent > 98:
             self.status_label.setText("ALERT: MAX CPU USAGE")
             self.status_label.setStyleSheet(self.make_status_style("critical"))
+        elif gpu_temp > 90:
+            self.status_label.setText(f"ALERT: GPU {gpu_temp}°C")
+            self.status_label.setStyleSheet(self.make_status_style("warning"))
         elif gpu_percent > 98:
             self.status_label.setText("ALERT: MAX GPU USAGE")
             self.status_label.setStyleSheet(self.make_status_style("critical"))
+        elif rm_percent > 98:
+            self.status_label.setText("ALERT: MAX RAM USAGE")
+            self.status_label.setStyleSheet(self.make_status_style("critical"))
         elif cpu_percent > 90:
-            self.status_label.setText("WARNING: >90% CPU USAGE")
+            self.status_label.setText(f"WARNING: {cpu_percent}% CPU USAGE")
             self.status_label.setStyleSheet(self.make_status_style("alert"))
         elif gpu_percent > 90:
-            self.status_label.setText("WARNING: >90% GPU USAGE")
+            self.status_label.setText(f"WARNING: {gpu_percent}% GPU USAGE")
+            self.status_label.setStyleSheet(self.make_status_style("alert"))
+        elif gpu_temp > 80:
+            self.status_label.setText(f"WARNING: GPU {gpu_temp}°C")
+            self.status_label.setStyleSheet(self.make_status_style("warning"))
+        elif rm_percent > 90:
+            self.status_label.setText(f"WARNING: {percent}% RAM USAGE")
             self.status_label.setStyleSheet(self.make_status_style("alert"))
         elif cpu_percent > 70:
-            self.status_label.setText("CAUTION: >70% CPU USAGE")
+            self.status_label.setText(f"CAUTION: {cpu_percent}% CPU USAGE")
             self.status_label.setStyleSheet(self.make_status_style("warning"))
         elif gpu_percent > 70:
-            self.status_label.setText("CAUTION: >70% GPU USAGE")
+            self.status_label.setText(f"CAUTION: {gpu_percent}% GPU USAGE")
             self.status_label.setStyleSheet(self.make_status_style("warning"))
+        elif gpu_temp > 65:
+            self.status_label.setText(f"CAUTION: GPU {gpu_temp}°C")
+            self.status_label.setStyleSheet(self.make_status_style("warning"))
+        elif rm_percent > 70:
+            self.status_label.setText(f"CAUTION: {percent}% RAM USAGE")
+            self.status_label.setStyleSheet(self.make_status_style("warning"))
+        elif percent > 98:
+            self.status_label.setText(f"{label1} IS FULL")
+            self.status_label.setStyleSheet(self.make_status_style("critical"))
+        elif percent > 90:
+            self.status_label.setText(f"CAUTION: {label1} IS {percent}% FULL")
+            self.status_label.setStyleSheet(self.make_status_style("warning"))
+        elif label == "USB":
+            self.status_label.setText(f"NOTICE: USB INSERTED ({label1})")
+            self.status_label.setStyleSheet(self.make_status_style("note"))
         else:
             self.status_label.setText("System: OK")
             self.status_label.setStyleSheet(self.make_status_style("normal"))
