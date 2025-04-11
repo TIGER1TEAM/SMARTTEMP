@@ -1,4 +1,6 @@
-#VER:1.2.1
+#VER:1.2.2
+#THIS DOES NOT WORK
+#If it does, I need to buy a lottery ticket
 import sys
 import time
 import os
@@ -248,6 +250,19 @@ class Dashboard(QWidget):
         self.storage_layout.addWidget(self.storage_label)
 
         layout.addWidget(self.storage_box)
+        
+        # Process Box
+        self.table = QTableWidget()
+        self.table.setColumnCount(4)
+        self.table.setHorizontalHeaderLabels(["PID", "Name", "CPU %", "Memory %"])
+        self.table.setSortingEnabled(True)
+
+        layout = QVBoxLayout()
+        layout.addWidget(self.table)
+        self.setLayout(layout)
+
+        self.update_processes()
+        
 
 		# Network Box
         self.network_box, self.network_layout = create_component_box("Network")
@@ -289,6 +304,17 @@ class Dashboard(QWidget):
             self.network_label.setText(
                 f"Download: {format_speed(download_speed)}\nUpload: {format_speed(upload_speed)}"
             )
+
+
+	def update_processes(self):
+		self.table.setRowCount(0)
+    	for proc in psutil.process_iter(['pid', 'name', 'cpu_percent', 'memory_percent']):
+        	row_position = self.table.rowCount()
+        	self.table.insertRow(row_position)
+        	self.table.setItem(row_position, 0, QTableWidgetItem(str(proc.info['pid'])))
+        	self.table.setItem(row_position, 1, QTableWidgetItem(proc.info['name']))
+        	self.table.setItem(row_position, 2, QTableWidgetItem(f"{proc.info['cpu_percent']:.1f}"))
+        	self.table.setItem(row_position, 3, QTableWidgetItem(f"{proc.info['memory_percent']:.1f}"))
 
     def update_stats(self):
         cpu_percent = psutil.cpu_percent()
@@ -356,6 +382,11 @@ class Dashboard(QWidget):
 
 
         self.update_network_info()
+
+		self.process_monitor = ProcessMonitor()
+		self.tabs.addTab(self.process_monitor, "Processes")
+        self.timer.timeout.connect(self.process_monitor.update_processes)
+		self.timer.start(5000)
 
 
         # Update top bar based on CPU usage
