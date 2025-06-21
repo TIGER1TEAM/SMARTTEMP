@@ -1,4 +1,4 @@
-#VER:1.2.1
+#VER:1.3.1
 import sys
 import time
 import os
@@ -7,6 +7,9 @@ import string
 import win32file
 import psutil
 import GPUtil
+
+ctypes.WinDLL(r"C:\Windows\System32\nvml.dll")
+from pynvml import nvmlInit, nvmlDeviceGetHandleByIndex, nvmlDeviceGetUtilizationRates, nvmlShutdown
 from datetime import datetime
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QLabel, QVBoxLayout, QHBoxLayout,
@@ -16,6 +19,11 @@ from PyQt5.QtGui import QGuiApplication
 from PyQt5.QtWidgets import QSpacerItem, QSizePolicy
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QFont
+
+import ctypes
+import os
+
+nvmlInit()
 
 def create_component_box(title):
     box = QGroupBox(title)
@@ -69,7 +77,7 @@ def get_disk_io_speed():
         return 0, 0
 
     read_speed = (current.read_bytes - prev.read_bytes) / elapsed / 1024  # KB/s
-    write_speed = (current.write_bytes - prev.read_bytes) / elapsed / 1024  # KB/s
+    write_speed = (current.write_bytes - prev.write_bytes) / elapsed / 1024  # KB/s
 
     prev = current
     prev_time = current_time
@@ -122,6 +130,11 @@ class ClockView(QWidget):
 screen_index = 1 
 
 class Dashboard(QWidget):
+
+    def closeEvent(self, event):
+        nvmlShutdown()
+        event.accept()
+
     def __init__(self):
         super().__init__()
         self.prev_net = psutil.net_io_counters()
@@ -223,6 +236,12 @@ class Dashboard(QWidget):
         layout.addSpacerItem(QSpacerItem(20, 20, QSizePolicy.Minimum, QSizePolicy.Expanding))
 
         # GPU Box
+
+        handle = nvmlDeviceGetHandleByIndex(0)
+        util = nvmlDeviceGetUtilizationRates(handle)
+        print("GPU Utilization:", util.gpu, "%")  # Accurate core usage
+        print("Memory Utilization:", util.memory, "%")
+
         self.gpu_box, self.gpu_layout = create_component_box("GPU")
         self.gpu_temp_label = QLabel()
         self.gpu_temp_label.setStyleSheet("color: white; font-size: 18px;")
@@ -299,11 +318,14 @@ class Dashboard(QWidget):
         gpus = GPUtil.getGPUs()
         gpu = gpus[0]
         gpu_temp = gpu.temperature
-        gpu_percent = gpu.memoryUtil * 100
-        gpu_percent = gpus[0].memoryUtil * 100 if gpus else 0  # Assuming 1 GPU; adjust for multi-GPU systems
+        handle = nvmlDeviceGetHandleByIndex(0)
+        util = nvmlDeviceGetUtilizationRates(handle)
+        gpu_core_usage = util.gpu  # percentage of GPU core usage
+        gpu_mem_usage = util.memory  # percentage of GPU memory usage
         self.gpu_temp_label.setText(f"PNY 4060ti 16GB\n"
                                     f"Temp: {gpu_temp}°C\n"
-                                    f"Usage: {gpu_percent:.1f}%/s"
+                                    f"Core Usage: {gpu_core_usage:.1f}%\n"
+                                    f"Memory Usage: {gpu_mem_usage:.1f}%/s"
                                     )
         
         # RAM Usage
@@ -365,7 +387,7 @@ class Dashboard(QWidget):
         elif gpu_temp > 90:
             self.status_label.setText(f"ALERT: GPU {gpu_temp}°C")
             self.status_label.setStyleSheet(self.make_status_style("warning"))
-        elif gpu_percent > 98:
+        elif gpu_core_usage > 98:
             self.status_label.setText("ALERT: MAX GPU USAGE")
             self.status_label.setStyleSheet(self.make_status_style("critical"))
         elif rm_percent > 98:
@@ -374,8 +396,8 @@ class Dashboard(QWidget):
         elif cpu_percent > 90:
             self.status_label.setText(f"WARNING: {cpu_percent}% CPU USAGE")
             self.status_label.setStyleSheet(self.make_status_style("alert"))
-        elif gpu_percent > 90:
-            self.status_label.setText(f"WARNING: {gpu_percent}% GPU USAGE")
+        elif gpu_core_usage > 90:
+            self.status_label.setText(f"WARNING: {gpu_core_usage}% GPU USAGE")
             self.status_label.setStyleSheet(self.make_status_style("alert"))
         elif gpu_temp > 80:
             self.status_label.setText(f"WARNING: GPU {gpu_temp}°C")
@@ -386,8 +408,8 @@ class Dashboard(QWidget):
         elif cpu_percent > 70:
             self.status_label.setText(f"CAUTION: {cpu_percent}% CPU USAGE")
             self.status_label.setStyleSheet(self.make_status_style("warning"))
-        elif gpu_percent > 70:
-            self.status_label.setText(f"CAUTION: {gpu_percent}% GPU USAGE")
+        elif gpu_core_usage > 70:
+            self.status_label.setText(f"CAUTION: {gpu_core_usage}% GPU USAGE")
             self.status_label.setStyleSheet(self.make_status_style("warning"))
         elif gpu_temp > 65:
             self.status_label.setText(f"CAUTION: GPU {gpu_temp}°C")
