@@ -6,7 +6,12 @@ import ctypes
 import string
 import win32file
 import psutil
-import GPUtil
+from pynvml import *
+nvmlInit()
+handle = nvmlDeviceGetHandleByIndex(0)
+info = nvmlDeviceGetUtilizationRates(handle)
+print("GPU Usage:", info.gpu, "%")
+
 
 ctypes.WinDLL(r"C:\Windows\System32\nvml.dll")
 from pynvml import nvmlInit, nvmlDeviceGetHandleByIndex, nvmlDeviceGetUtilizationRates, nvmlShutdown
@@ -50,16 +55,27 @@ def create_component_box(title):
     return box, layout
 
 def get_gpu_info():
-    gpus = GPUtil.getGPUs()
-    gpu_info = []
-    
-    for gpu in gpus:
-        gpu_name = gpu.name
-        gpu_temp = gpu.temperature  # Temperature of the GPU
-        gpu_percent = gpu.memoryUtil * 100  # Memory usage percentage
-        gpu_info.append((gpu_name, gpu_temp, gpu_percent))
-    
-    return gpu_info
+    try:
+        handle = nvmlDeviceGetHandleByIndex(0)
+        util = nvmlDeviceGetUtilizationRates(handle)
+        temp = nvmlDeviceGetTemperature(handle, NVML_TEMPERATURE_GPU)
+        mem_info = nvmlDeviceGetMemoryInfo(handle)
+        gpu_info = {
+            "name": nvmlDeviceGetName(handle).decode("utf-8"),
+            "temperature": temp,
+            "core_usage": util.gpu,
+            "memory_usage": mem_info.used / mem_info.total * 100
+        }
+        return gpu_info
+    except NVMLError as e:
+        return {
+            "name": "GPU not found",
+            "temperature": 0,
+            "core_usage": 0,
+            "memory_usage": 0
+        }
+
+
 
 
 # Call this once during initialization
@@ -243,12 +259,11 @@ class Dashboard(QWidget):
         print("Memory Utilization:", util.memory, "%")
 
         self.gpu_box, self.gpu_layout = create_component_box("GPU")
-        self.gpu_temp_label = QLabel()
-        self.gpu_temp_label.setStyleSheet("color: white; font-size: 18px;")
-        self.gpu_layout.addWidget(self.gpu_temp_label)
-        self.gpu_usage = QLabel()
-        self.gpu_usage.setStyleSheet("color: white; font-size: 18px;")
-        self.gpu_layout.addWidget(self.gpu_usage)
+        self.gpu_label = QLabel("Loading GPU data...")
+        self.gpu_label.setStyleSheet("color: white; font-size: 18px;")
+        self.gpu_layout.addWidget(self.gpu_label)
+        layout.addWidget(self.gpu_box)
+
 
         layout.addWidget(self.gpu_box)
         
@@ -315,18 +330,15 @@ class Dashboard(QWidget):
                                f"CPU Usage: {cpu_percent}%/s"
                                )
 
-        gpus = GPUtil.getGPUs()
-        gpu = gpus[0]
-        gpu_temp = gpu.temperature
-        handle = nvmlDeviceGetHandleByIndex(0)
-        util = nvmlDeviceGetUtilizationRates(handle)
-        gpu_core_usage = util.gpu  # percentage of GPU core usage
-        gpu_mem_usage = util.memory  # percentage of GPU memory usage
-        self.gpu_temp_label.setText(f"PNY 4060ti 16GB\n"
-                                    f"Temp: {gpu_temp}°C\n"
-                                    f"Core Usage: {gpu_core_usage:.1f}%\n"
-                                    f"Memory Usage: {gpu_mem_usage:.1f}%/s"
-                                    )
+        gpu_info = get_gpu_info()
+        self.gpu_label.setText(
+            f"{gpu_info['name']}\n"
+            f"Temp: {gpu_info['temperature']}°C\n"
+            f"Core Usage: {gpu_info['core_usage']:.1f}%\n"
+            f"Memory Usage: {gpu_info['memory_usage']:.1f}%"
+        )
+
+
         
         # RAM Usage
         memory = psutil.virtual_memory()
@@ -384,10 +396,10 @@ class Dashboard(QWidget):
         if cpu_percent > 98:
             self.status_label.setText("ALERT: MAX CPU USAGE")
             self.status_label.setStyleSheet(self.make_status_style("critical"))
-        elif gpu_temp > 90:
-            self.status_label.setText(f"ALERT: GPU {gpu_temp}°C")
+        elif gpu_info['temperature'] > 90:
+            self.status_label.setText(f"ALERT: GPU {gpu_info['temperature']}°C")
             self.status_label.setStyleSheet(self.make_status_style("warning"))
-        elif gpu_core_usage > 98:
+        elif gpu_info['core_usage'] > 98:
             self.status_label.setText("ALERT: MAX GPU USAGE")
             self.status_label.setStyleSheet(self.make_status_style("critical"))
         elif rm_percent > 98:
@@ -396,11 +408,11 @@ class Dashboard(QWidget):
         elif cpu_percent > 90:
             self.status_label.setText(f"WARNING: {cpu_percent}% CPU USAGE")
             self.status_label.setStyleSheet(self.make_status_style("alert"))
-        elif gpu_core_usage > 90:
-            self.status_label.setText(f"WARNING: {gpu_core_usage}% GPU USAGE")
+        elif gpu_info['core_usage'] > 90:
+            self.status_label.setText(f"WARNING: {gpu_info['core_usage']:.1f}% GPU USAGE")
             self.status_label.setStyleSheet(self.make_status_style("alert"))
-        elif gpu_temp > 80:
-            self.status_label.setText(f"WARNING: GPU {gpu_temp}°C")
+        elif gpu_info['temperature'] > 80:
+            self.status_label.setText(f"WARNING: GPU {gpu_info['temperature']}°C")
             self.status_label.setStyleSheet(self.make_status_style("warning"))
         elif rm_percent > 90:
             self.status_label.setText(f"WARNING: {percent}% RAM USAGE")
@@ -408,11 +420,11 @@ class Dashboard(QWidget):
         elif cpu_percent > 70:
             self.status_label.setText(f"CAUTION: {cpu_percent}% CPU USAGE")
             self.status_label.setStyleSheet(self.make_status_style("warning"))
-        elif gpu_core_usage > 70:
-            self.status_label.setText(f"CAUTION: {gpu_core_usage}% GPU USAGE")
+        elif gpu_info['core_usage'] > 70:
+            self.status_label.setText(f"CAUTION: {gpu_info['core_usage']:.1f}% GPU USAGE")
             self.status_label.setStyleSheet(self.make_status_style("warning"))
-        elif gpu_temp > 65:
-            self.status_label.setText(f"CAUTION: GPU {gpu_temp}°C")
+        elif gpu_info['temperature'] > 65:
+            self.status_label.setText(f"CAUTION: GPU {gpu_info['temperature']}°C")
             self.status_label.setStyleSheet(self.make_status_style("warning"))
         elif rm_percent > 70:
             self.status_label.setText(f"CAUTION: {percent}% RAM USAGE")
